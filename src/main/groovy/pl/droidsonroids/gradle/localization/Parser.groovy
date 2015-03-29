@@ -6,6 +6,7 @@ import org.apache.commons.csv.CSVParser
 import org.jsoup.Jsoup
 
 import java.text.Normalizer
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 import static pl.droidsonroids.gradle.localization.ResourceType.*
@@ -114,6 +115,7 @@ class Parser {
                 def arrays = new HashMap<String, List<StringArrayItem>>()
                 for (i in 0..cells.length - 1) {
                     String[] row = cells[i]
+
                     if (row.length < sourceInfo.mColumnsCount) {
                         String[] extendedRow = new String[sourceInfo.mColumnsCount]
                         System.arraycopy(row, 0, extendedRow, 0, row.length)
@@ -121,20 +123,22 @@ class Parser {
                             extendedRow[k] = ''
                         row = extendedRow
                     }
+
                     String name = row[sourceInfo.mNameIdx]
                     String value = row[j]
                     String comment = null
                     if (sourceInfo.mCommentIdx >= 0 && !row[sourceInfo.mCommentIdx].isEmpty()) {
                         comment = row[sourceInfo.mCommentIdx]
                     }
-                    def indexOfOpeningBrace = name.indexOf('[')
-                    def indexOfClosingBrace = name.indexOf(']')
+
                     String indexValue
                     ResourceType resourceType
-                    if (indexOfOpeningBrace > 0 && indexOfClosingBrace == name.length() - 1) {
-                        indexValue = name.substring(indexOfOpeningBrace + 1, indexOfClosingBrace)
-                        resourceType = indexValue.isEmpty() ? ARRAY : PLURAL
-                        name = name.substring(0, indexOfOpeningBrace)
+                    def matcher = name =~ /^(?<name>\w*)\[(?<quantity>\w*)?\]$/
+
+                    if (matcher.matches()) {
+                        name = matcher.group('name')
+                        indexValue = matcher.group('quantity')
+                        resourceType = indexValue ? PLURAL : ARRAY
                     } else {
                         resourceType = STRING
                         indexValue = null
@@ -189,8 +193,6 @@ class Parser {
                             arrays[name] = stringList
                         } else {
                             Quantity pluralQuantity = Quantity.valueOf(indexValue)
-                            //                        if (!Quantity.values().contains(pluralQuantity))
-                            //                            throw new IOException(pluralQuantity + " is not valid quantity, row #" + (i + 2))
                             HashSet<PluralItem> quantitiesSet = pluralsMap.get(name, [])
                             if (!value.isEmpty()) {
                                 if (!quantitiesSet.add(new PluralItem(pluralQuantity, value, comment)))
@@ -211,9 +213,10 @@ class Parser {
                         mkp.comment(comment)
                     }
                 }
+
                 for (Map.Entry<String, HashSet<PluralItem>> entry : pluralsMap) {
                     plurals([name: entry.key]) {
-                        if (entry.value.isEmpty())
+                        if (entry.value.isEmpty() && !mConfig.allowEmptyTranslations)
                             throw new IOException("At least one quantity string must be defined for key: "
                                     + entry.key + ", qualifier " + builder.mQualifier)
                         for (PluralItem quantityEntry : entry.value) {

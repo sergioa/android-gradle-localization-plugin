@@ -15,14 +15,14 @@ class LocalizationPluginTest extends GroovyTestCase {
     @Test
     void testValidFile() {
         println 'testing valid file'
-        parseTestFile('valid.csv')
+        parseTestFile('valid.csv', new ConfigExtension())
     }
 
     @Test
     void testMissingTranslation() {
         println 'testing invalid file'
         try {
-            parseTestFile('missing_translation.csv')
+            parseTestFile('missing_translation.csv', new ConfigExtension())
             fail(IOException.class.getName() + ' expected')
         }
         catch (IOException ignored) {
@@ -30,8 +30,14 @@ class LocalizationPluginTest extends GroovyTestCase {
         }
     }
 
-    private void parseTestFile(String fileName) {
+    @Test
+    void testTranslations() {
         def config = new ConfigExtension()
+        config.allowEmptyTranslations = true
+        parseTestFile('android-new.csv', config)
+    }
+
+    private void parseTestFile(String fileName, ConfigExtension config) {
         config.csvFileURI = getClass().getResource(fileName).toURI()
         parseTestCSV(config)
     }
